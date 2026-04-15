@@ -14,20 +14,25 @@ def extract_lines_from_block(block, page_no):
         if bbox is None:
             continue
 
-        text = "".join(span.get("text", "") for span in line.get("spans", [])).strip()
+        spans = line.get("spans", [])
+        text = "".join(span.get("text", "") for span in spans).strip()
         text = normalize_text(text)
         if not text:
             continue
+
+        font_sizes = [span.get("size", 0) for span in spans if span.get("size") is not None]
+        avg_font_size = sum(font_sizes) / len(font_sizes) if font_sizes else 0
 
         lines_out.append({
             "page": page_no,
             "bbox": [float(v) for v in bbox],
             "text": text,
+            "font_size": float(avg_font_size),
         })
 
     return lines_out
 
-def split_block_by_indent(lines, indent_thresh=8):
+def split_block(lines, indent_thresh=8, font_diff_thresh=1.5):
     if not lines:
         return []
 
@@ -46,7 +51,11 @@ def split_block_by_indent(lines, indent_thresh=8):
 
         indent = cur_x0 - body_left
 
-        if indent > indent_thresh and prev_y1 != cur_y1:
+        prev_font = prev.get("font_size", 0)
+        cur_font = cur.get("font_size", 0)
+        is_font_change = abs(cur_font - prev_font) > font_diff_thresh
+
+        if (indent > indent_thresh and prev_y1 != cur_y1) or is_font_change:
             paragraphs.append(current)
             current = [cur]
         else:
@@ -73,6 +82,7 @@ def split_block_by_indent(lines, indent_thresh=8):
 def parse_pdf(
     pdf_path,
     indent_thresh=8,
+    font_diff_thresh=1.5,
     min_lines_to_split=4
 ):
     doc = fitz.open(pdf_path)
@@ -116,9 +126,10 @@ def parse_pdf(
                     })
                     continue
 
-                split_blocks = split_block_by_indent(
+                split_blocks = split_block(
                     lines,
-                    indent_thresh=indent_thresh
+                    indent_thresh=indent_thresh,
+                    font_diff_thresh=font_diff_thresh
                 )
 
                 # Nếu split xong vẫn chỉ ra 1 block thì giữ như block thường
