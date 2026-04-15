@@ -70,7 +70,7 @@ def split_block_by_indent(lines, indent_thresh=8):
 
     return blocks_out
 
-def process_pdf_blocks_from_dict(
+def parse_pdf(
     pdf_path,
     indent_thresh=8,
     min_lines_to_split=4
